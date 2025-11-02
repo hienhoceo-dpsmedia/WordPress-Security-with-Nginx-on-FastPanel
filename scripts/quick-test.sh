@@ -14,6 +14,7 @@ NC='\033[0m' # No Color
 
 # Default domain
 DOMAIN="${1:-}"
+USER_AGENT="Mozilla/5.0 (WordPress Security Audit)"
 
 # Function to print colored output
 print_status() {
@@ -55,16 +56,13 @@ print_header "Critical Security Tests"
 # Helper to fetch HTTP status code
 get_status() {
     local url="$1"
-    local output status
+    local status
 
-    if ! output=$(wget -q --server-response --timeout=10 --output-document=/dev/null "$url" 2>&1); then
-        echo "000"
-        return
-    fi
-
-    status=$(printf '%s\n' "$output" | awk '/HTTP\//{code=$2} END{if (code) print code; else print "000"}')
+    status=$(curl -sS -o /dev/null -w "%{http_code}" -A "$USER_AGENT" "$url" 2>/dev/null || true)
     status=${status//$'\r'/}
-    status=${status:-000}
+    if [[ -z "${status// }" ]]; then
+        status="000"
+    fi
     echo "$status"
 }
 
