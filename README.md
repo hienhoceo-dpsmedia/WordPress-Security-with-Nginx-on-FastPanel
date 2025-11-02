@@ -425,7 +425,12 @@ sudo bash <(wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordp
 sudo bash <(curl -s https://cdn.jsdelivr.net/gh/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel@master/setup.sh)
 ```
 
-#### **Method 3: Download and run separately**
+#### **Method 3: Direct installation (Recommended)**
+```bash
+sudo bash <(curl -s https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/install-direct.sh)
+```
+
+#### **Method 4: Download and run separately**
 ```bash
 # Download the setup script
 wget https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/setup.sh
@@ -435,7 +440,7 @@ chmod +x setup.sh
 sudo ./setup.sh
 ```
 
-#### **Method 4: Test connectivity**
+#### **Method 5: Test connectivity**
 ```bash
 # Test if GitHub is accessible
 curl -I https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/setup.sh
@@ -469,7 +474,8 @@ This is **safe to run multiple times** and will:
 WordPress-Security-with-Nginx-on-FastPanel/
 ├── README.md                          # This file
 ├── setup.sh                           # 🚀 1-command setup script
-├── setup-alternative.sh               # 🛠️ Alternative setup methods
+├── install-direct.sh                  # 🛠️ Direct installation script (recommended)
+├── setup-alternative.sh               # 🔧 Alternative setup methods
 ├── nginx-includes/
 │   └── wordpress-security.conf        # Main security configuration
 └── scripts/

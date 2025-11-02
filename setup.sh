@@ -57,41 +57,12 @@ check_fastpanel() {
     fi
 }
 
-# Download required files
-download_files() {
-    print_status "Downloading WordPress Security files..."
-
-    # Create temporary directory
-    TEMP_DIR=$(mktemp -d)
-    cd "$TEMP_DIR"
-
-    # Create directory structure to match install.sh expectations
-    mkdir -p nginx-includes
-
-    # Download security configuration
-    print_status "Downloading security configuration..."
-    curl -s -o nginx-includes/wordpress-security.conf "$RAW_URL/nginx-includes/wordpress-security.conf"
-
-    # Download installation script
-    print_status "Downloading installation script..."
-    curl -s -o install.sh "$RAW_URL/scripts/install.sh"
-
-    # Download quick test script
-    print_status "Downloading test script..."
-    curl -s -o quick-test.sh "$RAW_URL/scripts/quick-test.sh"
-
-    # Make scripts executable
-    chmod +x install.sh quick-test.sh
-
-    print_success "Files downloaded successfully"
-}
-
-# Run installation
+# Run direct installation
 run_installation() {
     print_header "Starting WordPress Security Installation"
 
-    # Install the security configuration
-    ./install.sh
+    # Download and run direct installation script
+    curl -s "$RAW_URL/install-direct.sh" | bash
 
     print_success "Installation completed!"
 }
@@ -114,7 +85,7 @@ offer_test() {
         if [[ -n "$domains" ]]; then
             for domain in $domains; do
                 print_status "Testing $domain..."
-                ./quick-test.sh "$domain"
+                curl -s "$RAW_URL/scripts/quick-test.sh" | bash -s "$domain"
                 echo
             done
         else
