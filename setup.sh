@@ -36,14 +36,14 @@ print_header() {
 }
 
 # Repository information
-REPO_URL="https://github.com/hienhoceo-dpsmedia/WordPress-Security-with-Nginx-on-FastPanel"
-RAW_URL="https://raw.githubusercontent.com/hienhoceo-dpsmedia/WordPress-Security-with-Nginx-on-FastPanel/main"
+REPO_URL="https://github.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel"
+RAW_URL="https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/main"
 
 # Check if running as root
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         print_error "This script must be run as root or with sudo"
-        print_status "Try: sudo bash <(curl -s $REPO_URL/raw/main/setup.sh)"
+        print_status "Try: sudo bash <(curl -s $RAW_URL/setup.sh)"
         exit 1
     fi
 }

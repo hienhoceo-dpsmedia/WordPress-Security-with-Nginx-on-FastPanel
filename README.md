@@ -32,7 +32,7 @@ We use Nginx location rules to deny access to those things at the webserver leve
 Run this single command on your VPS to install WordPress security:
 
 ```bash
-sudo bash <(curl -s https://raw.githubusercontent.com/hienhoceo-dpsmedia/WordPress-Security-with-Nginx-on-FastPanel/main/setup.sh)
+sudo bash <(curl -s https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/main/setup.sh)
 ```
 
 That's it! The script will:
@@ -46,7 +46,7 @@ That's it! The script will:
 After installation, test your security:
 
 ```bash
-curl -s https://raw.githubusercontent.com/hienhoceo-dpsmedia/WordPress-Security-with-Nginx-on-FastPanel/main/scripts/quick-test.sh | bash -s your-domain.com
+curl -s https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/main/scripts/quick-test.sh | bash -s your-domain.com
 ```
 
 ---
@@ -56,7 +56,7 @@ curl -s https://raw.githubusercontent.com/hienhoceo-dpsmedia/WordPress-Security-
 If you prefer to clone the repository first:
 
 ```bash
-git clone https://github.com/hienhoceo-dpsmedia/WordPress-Security-with-Nginx-on-FastPanel.git
+git clone https://github.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel.git
 cd WordPress-Security-with-Nginx-on-FastPanel
 sudo ./scripts/install.sh
 ```
