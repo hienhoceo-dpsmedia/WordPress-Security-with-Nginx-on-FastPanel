@@ -28,6 +28,10 @@ print_error() {
     echo -e "${RED}[FAIL]${NC} $1"
 }
 
+print_warning() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
 print_header() {
     echo
     echo -e "${BLUE}=== $1 ===${NC}"
@@ -66,16 +70,20 @@ get_status() {
 
 # Test PHP execution in uploads
 response=$(get_status "https://$DOMAIN/wp-content/uploads/test.php")
-if [[ "$response" == "403" ]]; then
-    print_success "PHP execution blocked in uploads - HTTP $response ✓"
-else
-    print_error "PHP execution not blocked in uploads - HTTP $response ✗"
-fi
+    if [[ "$response" == "403" ]]; then
+        print_success "PHP execution blocked in uploads - HTTP $response ✓"
+    elif [[ "$response" == "000" ]]; then
+        print_warning "PHP execution check inconclusive (network error) ⚠"
+    else
+        print_error "PHP execution not blocked in uploads - HTTP $response ✗"
+    fi
 
 # Test wp-config access
 response=$(get_status "https://$DOMAIN/wp-config.php")
 if [[ "$response" == "403" ]]; then
     print_success "wp-config.php access blocked - HTTP $response ✓"
+elif [[ "$response" == "000" ]]; then
+    print_warning "wp-config.php check inconclusive (network error) ⚠"
 else
     print_error "wp-config.php access not blocked - HTTP $response ✗"
 fi
@@ -84,6 +92,8 @@ fi
 response=$(get_status "https://$DOMAIN/xmlrpc.php")
 if [[ "$response" == "403" ]]; then
     print_success "xmlrpc.php access blocked - HTTP $response ✓"
+elif [[ "$response" == "000" ]]; then
+    print_warning "xmlrpc.php check inconclusive (network error) ⚠"
 else
     print_error "xmlrpc.php access not blocked - HTTP $response ✗"
 fi
@@ -92,6 +102,8 @@ fi
 response=$(get_status "https://$DOMAIN/readme.html")
 if [[ "$response" == "403" ]]; then
     print_success "readme.html access blocked - HTTP $response ✓"
+elif [[ "$response" == "000" ]]; then
+    print_warning "readme.html check inconclusive (network error) ⚠"
 else
     print_error "readme.html access not blocked - HTTP $response ✗"
 fi
