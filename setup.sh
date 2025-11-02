@@ -152,7 +152,6 @@ main() {
     check_fastpanel
 
     # Download and install
-    download_files
     run_installation
 
     # Offer testing

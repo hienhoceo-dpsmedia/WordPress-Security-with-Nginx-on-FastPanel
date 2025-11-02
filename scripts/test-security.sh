@@ -160,11 +160,16 @@ test_url_direct() {
         print_status "Testing direct to IP ($server_ip): $url"
     fi
 
+    local origin_host="$server_ip"
+    if [[ "$server_ip" == *:* ]]; then
+        origin_host="[$server_ip]"
+    fi
+
     local response_code
     response_code=$(wget -q --server-response --timeout=10 --output-document=/dev/null \
         --user-agent="WordPress-Security-Test/1.0" \
         --header="Host: $DOMAIN" \
-        "https://$server_ip$url" 2>&1 | grep "HTTP/" | tail -1 | awk '{print $2}' || echo "000")
+        "https://$origin_host$url" 2>&1 | grep "HTTP/" | tail -1 | awk '{print $2}' || echo "000")
 
     if [[ "$response_code" == "$expected_code" ]]; then
         print_success "$description (direct) - HTTP $response_code ✓"
@@ -319,6 +324,7 @@ test_attack_patterns() {
 check_security_config() {
     print_header "Checking Security Configuration"
 
+    ((TOTAL_TESTS++))
     if [[ -f "/etc/nginx/fastpanel2-includes/wordpress-security.conf" ]]; then
         print_success "Security configuration file exists"
     else
@@ -326,6 +332,7 @@ check_security_config() {
     fi
 
     # Check if vhosts include the security config
+    ((TOTAL_TESTS++))
     local includes_found=0
     for vhost in /etc/nginx/fastpanel2-sites/*/*.conf; do
         if [[ -f "$vhost" ]] && grep -q "fastpanel2-includes" "$vhost"; then
@@ -351,20 +358,23 @@ print_summary() {
     echo -e "${RED}Failed:${NC} $FAILED_TESTS"
     echo
 
-    local success_rate=$((PASSED_TESTS * 100 / TOTAL_TESTS))
+    local success_rate=0
+    if [[ $TOTAL_TESTS -gt 0 ]]; then
+        success_rate=$((PASSED_TESTS * 100 / TOTAL_TESTS))
+    fi
     echo -e "${BLUE}Success rate:${NC} $success_rate%"
 
     if [[ $FAILED_TESTS -eq 0 ]]; then
         echo
-        print_success "All critical security tests passed! Your WordPress site is well protected."
+        echo -e "${GREEN}[OK]${NC} All critical security tests passed! Your WordPress site is well protected."
     else
         echo
-        print_error "Some security tests failed. Please review the configuration."
+        echo -e "${RED}[ATTENTION]${NC} Some security tests failed. Please review the configuration."
     fi
 
     if [[ $WARNING_TESTS -gt 0 ]]; then
         echo
-        print_warning "Some tests returned warnings. This might be due to CDN caching or other factors."
+        echo -e "${YELLOW}[NOTICE]${NC} Some tests returned warnings. This might be due to CDN caching or other factors."
     fi
 }
 
