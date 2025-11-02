@@ -14,6 +14,62 @@ NC='\033[0m' # No Color
 
 # Default domain - will be overridden by command line argument
 DOMAIN=""
+CREATE_FIXTURES=true
+DOCROOT=""
+TEMP_FILES=()
+
+CRITICAL_FILES=(
+    "/wp-config.php"
+    "/wp-config-sample.php"
+    "/xmlrpc.php"
+    "/wp-admin/install.php"
+    "/wp-admin/upgrade.php"
+    "/wp-content/debug.log"
+    "/readme.html"
+    "/license.txt"
+)
+
+UPLOAD_PHP_FILES=(
+    "/wp-content/uploads/test.php"
+    "/wp-content/uploads/shell.php"
+    "/wp-content/uploads/2023/12/malicious.php"
+    "/wp-content/backup.php"
+    "/wp-content/cache/test.php"
+)
+
+BACKUP_FILES=(
+    "/wp-config.php.bak"
+    "/wp-config.php.backup"
+    "/wp-config.php.old"
+    "/wp-config.php~"
+    "/database.sql"
+    "/backup.zip"
+    "/site.tar.gz"
+    "/wp-content/uploads/backup.sql"
+    "/.env"
+    "/.htaccess"
+)
+
+DANGEROUS_SCRIPTS=(
+    "/shell.cgi"
+    "/test.pl"
+    "/script.py"
+    "/malicious.sh"
+    "/exploit.lua"
+    "/hack.asp"
+    "/backdoor.aspx"
+)
+
+EXPLOIT_FILES=(
+    "/timthumb.php"
+    "/phpinfo.php"
+    "/webshell.php"
+    "/c99.php"
+    "/r57.php"
+    "/backdoor.php"
+    "/evil.php"
+    "/hack.php"
+)
 
 # Test results counters
 TOTAL_TESTS=0
@@ -46,6 +102,121 @@ print_header() {
     echo -e "${BLUE}=== $1 ===${NC}"
 }
 
+cleanup_fixtures() {
+    if [[ ${#TEMP_FILES[@]} -eq 0 ]]; then
+        return
+    fi
+
+    for file in "${TEMP_FILES[@]}"; do
+        if [[ -f "$file" ]]; then
+            rm -f "$file"
+        fi
+    done
+    TEMP_FILES=()
+}
+
+trap cleanup_fixtures EXIT
+
+# Determine the document root for the given domain by inspecting FastPanel configs
+resolve_docroot() {
+    local domain="$1"
+    local conf_file=""
+
+    while IFS= read -r -d '' file; do
+        if grep -q "server_name[^;]*\\b$domain\\b" "$file"; then
+            conf_file="$file"
+            break
+        fi
+    done < <(find /etc/nginx/fastpanel2-sites -type f -name '*.conf' -print0 2>/dev/null || true)
+
+    if [[ -z "$conf_file" ]]; then
+        return 1
+    fi
+
+    local root_path=""
+    root_path=$(awk '/set[[:space:]]+\$root_path/ {gsub(";", "", $3); print $3; exit}' "$conf_file")
+
+    if [[ -z "$root_path" ]]; then
+        root_path=$(awk '/[[:space:]]root[[:space:]]/ {gsub(";", "", $2); if ($2 !~ /\$/) {print $2; exit}}' "$conf_file")
+    fi
+
+    if [[ -z "$root_path" ]]; then
+        return 1
+    fi
+
+    DOCROOT="$root_path"
+    return 0
+}
+
+create_fixture() {
+    local url_path="$1"
+    local path="${url_path%%\?*}"
+
+    # Skip root path or empty
+    if [[ -z "$path" || "$path" == "/" ]]; then
+        return
+    fi
+
+    local full_path="$DOCROOT$path"
+
+    # Do not overwrite existing files
+    if [[ -e "$full_path" ]]; then
+        return
+    fi
+
+    local dir
+    dir=$(dirname "$full_path")
+    mkdir -p "$dir"
+
+    case "$full_path" in
+        *.php)
+            printf '<?php echo "test";' > "$full_path"
+            ;;
+        *.sql|*.log|*.env|*.bak|*.backup|*.old|*.orig|*.original|*.txt|*.md|*.cgi|*.pl|*.py|*.sh|*.lua|*.asp|*.aspx|*.dll)
+            printf 'test fixture\n' > "$full_path"
+            ;;
+        *.zip|*.tar|*.gz|*.7z|*.rar)
+            printf 'test fixture archive\n' > "$full_path"
+            ;;
+        *)
+            printf 'test fixture\n' > "$full_path"
+            ;;
+    esac
+
+    TEMP_FILES+=("$full_path")
+}
+
+setup_fixtures() {
+    if [[ "$CREATE_FIXTURES" != true ]]; then
+        return
+    fi
+
+    if ! resolve_docroot "$DOMAIN"; then
+        print_warning "Could not determine document root for $DOMAIN - skipping temporary fixture creation"
+        CREATE_FIXTURES=false
+        return
+    fi
+
+    print_status "Creating temporary fixture files under $DOCROOT"
+
+    local path
+    for path in "${UPLOAD_PHP_FILES[@]}"; do
+        create_fixture "$path"
+    done
+
+    for path in "${BACKUP_FILES[@]}"; do
+        create_fixture "$path"
+    done
+
+    for path in "${DANGEROUS_SCRIPTS[@]}"; do
+        create_fixture "$path"
+    done
+
+    for path in "${EXPLOIT_FILES[@]}"; do
+        create_fixture "$path"
+    done
+}
+
 # Print usage information
 usage() {
     echo "WordPress Security Test Script"
@@ -58,6 +229,7 @@ usage() {
     echo "  -h, --help     Show this help message"
     echo "  -v, --verbose  Verbose output"
     echo "  --skip-cdn     Skip CDN bypass tests"
+    echo "  --no-fixtures  Do not create temporary test files"
     echo
     echo "Examples:"
     echo "  $0 example.com"
@@ -82,6 +254,10 @@ parse_args() {
                 ;;
             --skip-cdn)
                 SKIP_CDN=true
+                shift
+                ;;
+            --no-fixtures)
+                CREATE_FIXTURES=false
                 shift
                 ;;
             -*)
@@ -191,18 +367,7 @@ test_url_direct() {
 test_critical_files() {
     print_header "Testing Critical WordPress Files (Should Return 403)"
 
-    local files=(
-        "/wp-config.php"
-        "/wp-config-sample.php"
-        "/xmlrpc.php"
-        "/wp-admin/install.php"
-        "/wp-admin/upgrade.php"
-        "/wp-content/debug.log"
-        "/readme.html"
-        "/license.txt"
-    )
-
-    for file in "${files[@]}"; do
+    for file in "${CRITICAL_FILES[@]}"; do
         test_url "$file" "403" "Access to $file should be blocked"
         test_url_direct "$file" "403" "Access to $file should be blocked"
     done
@@ -212,15 +377,7 @@ test_critical_files() {
 test_upload_php() {
     print_header "Testing PHP Execution in Uploads (Should Return 403)"
 
-    local php_files=(
-        "/wp-content/uploads/test.php"
-        "/wp-content/uploads/shell.php"
-        "/wp-content/uploads/2023/12/malicious.php"
-        "/wp-content/backup.php"
-        "/wp-content/cache/test.php"
-    )
-
-    for file in "${php_files[@]}"; do
+    for file in "${UPLOAD_PHP_FILES[@]}"; do
         test_url "$file" "403" "PHP execution in $file should be blocked"
         test_url_direct "$file" "403" "PHP execution in $file should be blocked"
     done
@@ -230,20 +387,7 @@ test_upload_php() {
 test_backup_files() {
     print_header "Testing Backup and Development Files (Should Return 403)"
 
-    local backup_files=(
-        "/wp-config.php.bak"
-        "/wp-config.php.backup"
-        "/wp-config.php.old"
-        "/wp-config.php~"
-        "/database.sql"
-        "/backup.zip"
-        "/site.tar.gz"
-        "/wp-content/uploads/backup.sql"
-        "/.env"
-        "/.htaccess"
-    )
-
-    for file in "${backup_files[@]}"; do
+    for file in "${BACKUP_FILES[@]}"; do
         test_url "$file" "403" "Access to $file should be blocked"
         test_url_direct "$file" "403" "Access to $file should be blocked"
     done
@@ -253,17 +397,7 @@ test_backup_files() {
 test_dangerous_scripts() {
     print_header "Testing Dangerous Script Types (Should Return 403)"
 
-    local scripts=(
-        "/shell.cgi"
-        "/test.pl"
-        "/script.py"
-        "/malicious.sh"
-        "/exploit.lua"
-        "/hack.asp"
-        "/backdoor.aspx"
-    )
-
-    for script in "${scripts[@]}"; do
+    for script in "${DANGEROUS_SCRIPTS[@]}"; do
         test_url "$script" "403" "Access to $script should be blocked"
         test_url_direct "$script" "403" "Access to $script should be blocked"
     done
@@ -273,18 +407,7 @@ test_dangerous_scripts() {
 test_exploit_files() {
     print_header "Testing Known Exploit Files (Should Return 403)"
 
-    local exploits=(
-        "/timthumb.php"
-        "/phpinfo.php"
-        "/webshell.php"
-        "/c99.php"
-        "/r57.php"
-        "/backdoor.php"
-        "/evil.php"
-        "/hack.php"
-    )
-
-    for exploit in "${exploits[@]}"; do
+    for exploit in "${EXPLOIT_FILES[@]}"; do
         test_url "$exploit" "403" "Access to $exploit should be blocked"
         test_url_direct "$exploit" "403" "Access to $exploit should be blocked"
     done
@@ -393,6 +516,8 @@ main() {
     print_status "WordPress Security Test for $DOMAIN"
     print_status "Started at $(date)"
     echo
+
+    setup_fixtures
 
     # Run tests
     check_security_config
