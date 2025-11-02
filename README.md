@@ -40,6 +40,7 @@ That's it! The script will:
 - ✅ Install security rules for all your FastPanel sites
 - ✅ Create automatic backups
 - ✅ Test basic protections
+- ✅ Set up a nightly cron job that re-runs the installer (02:30) and prunes backups older than 7 days, so new FastPanel sites get protected automatically
 - ✅ Provide next steps
 
 ### Quick Test
@@ -258,7 +259,9 @@ The install script:
 - ✅ Updates all vhost configurations
 - ✅ Tests and reloads Nginx
 - ✅ Verifies the installation
+- ✅ Installs `/usr/local/sbin/wp-security-nightly.sh` and a cron entry (`30 2 * * *`) so the rules are re-applied nightly and old backups are rotated
 
+Nightly automation logs to `/var/log/wp-security-nightly.log`. Adjust the schedule with `sudo crontab -e` if you prefer a different time or disable it by removing the cron line.
 ### Testing
 
 ```bash
@@ -271,9 +274,14 @@ The install script:
 # With verbose output
 ./scripts/test-security.sh your-domain.com --verbose
 
-# Skip CDN bypass tests
+# Skip CDN bypass tests (stay behind Cloudflare or similar)
 ./scripts/test-security.sh your-domain.com --skip-cdn
+
+# Run without creating temporary fixtures
+./scripts/test-security.sh your-domain.com --no-fixtures
 ```
+
+> ℹ️ The comprehensive test now creates temporary “bait” files in your document root (backups, shells, etc.) so the Nginx rules can return real 403 responses. They are removed automatically when the script exits. Use `--no-fixtures` if you prefer to skip creating those files.
 
 ### Uninstallation
 
@@ -446,16 +454,18 @@ wget --spider https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-sec
 
 ### Handling New Websites
 
-After creating new websites in FastPanel, run the setup again to protect them:
+The installer creates a nightly cron job that re-runs itself (`/usr/local/sbin/wp-security-nightly.sh` at 02:30). Any new FastPanel site you add today will be picked up automatically tonight.
+
+Need instant coverage (or disabled the cron job)? Just rerun:
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/install-direct.sh | sudo bash
 ```
 
-This is **safe to run multiple times** and will:
-- ✅ Create fresh backup
+The script is **safe to run multiple times** and will:
+- ✅ Create a fresh backup
 - ✅ Protect any new websites
-- ✅ Not affect existing protected sites
+- ✅ Leave already-protected sites untouched
 
 ### Common Issues
 
