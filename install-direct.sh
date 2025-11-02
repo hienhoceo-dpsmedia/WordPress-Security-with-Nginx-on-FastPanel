@@ -96,10 +96,13 @@ update_vhosts() {
 
     local count=0
     local total=0
+    local failed=0
+    local vhost_array=()
 
-    # Count total vhost files
+    # Build array of vhost files
     for vhost in /etc/nginx/fastpanel2-sites/*/*.conf; do
         if [[ -f "$vhost" ]]; then
+            vhost_array+=("$vhost")
             ((total++))
         fi
     done
@@ -111,27 +114,78 @@ update_vhosts() {
 
     print_status "Found $total vhost configuration(s) to update"
 
-    # Update each vhost configuration
-    for vhost in /etc/nginx/fastpanel2-sites/*/*.conf; do
+    # Update each vhost configuration with error handling
+    for vhost in "${vhost_array[@]}"; do
         if [[ -f "$vhost" ]]; then
             print_status "Processing: $(basename "$vhost")"
 
+            # Create backup of this specific vhost
+            local backup_name="${vhost}.backup.$(date +%s)"
+            if ! cp "$vhost" "$backup_name"; then
+                print_error "Failed to backup $vhost"
+                ((failed++))
+                continue
+            fi
+
             # Remove any existing include lines to avoid duplicates
-            sed -i '/include \/etc\/nginx\/fastpanel2-includes\/\*\.conf;/d' "$vhost"
+            if ! sed -i '/include \/etc\/nginx\/fastpanel2-includes\/\*\.conf;/d' "$vhost"; then
+                print_error "Failed to remove existing includes from $(basename "$vhost")"
+                ((failed++))
+                continue
+            fi
 
             # Check if disable_symlinks line exists and insert include after it
             if grep -q "disable_symlinks if_not_owner from=\$root_path;" "$vhost"; then
-                sed -i '/disable_symlinks if_not_owner from=\$root_path;/a\    # load security includes early\n    include /etc/nginx/fastpanel2-includes/*.conf;' "$vhost"
-                ((count++))
-                print_success "✓ Added security include to $(basename "$vhost")"
+                # Use a more reliable method to add the include
+                if sed -i '/disable_symlinks if_not_owner from=\$root_path;/a\    # load security includes early\n    include /etc/nginx/fastpanel2-includes/*.conf;' "$vhost"; then
+                    ((count++))
+                    print_success "✓ Added security include to $(basename "$vhost")"
+                else
+                    print_error "✗ Failed to add include to $(basename "$vhost")"
+                    ((failed++))
+                    # Restore from backup
+                    mv "$backup_name" "$vhost"
+                fi
             else
-                print_warning "⚠ Could not find disable_symlinks directive in $(basename "$vhost")"
-                print_status "  You may need to manually add the include line to this file"
+                print_warning "⚠ Could not find disable_symlinks directive in $(basename "$vhost\")"
+                print_status "  Attempting alternative placement..."
+
+                # Alternative: add include at the end of server block
+                if grep -q "listen.*80;" "$vhost" && grep -q "listen.*443;" "$vhost"; then
+                    # Add after the first listen directive
+                    if sed -i '/listen.*443;/a\    # load security includes early\n    include /etc/nginx/fastpanel2-includes/*.conf;' "$vhost"; then
+                        ((count++))
+                        print_success "✓ Added security include (alternative placement) to $(basename "$vhost")"
+                    else
+                        print_error "✗ Failed to add include to $(basename "$vhost")"
+                        ((failed++))
+                        mv "$backup_name" "$vhost"
+                    fi
+                else
+                    print_warning "⚠ Could not find suitable placement in $(basename "$vhost")"
+                    print_status "  You may need to manually add the include line to this file"
+                    ((failed++))
+                fi
+            fi
+
+            # Remove backup if successful
+            if [[ $failed -eq 0 ]] || [[ ! -f "$backup_name" ]]; then
+                rm -f "$backup_name" 2>/dev/null
             fi
         fi
+
+        # Progress indicator
+        echo -n "Progress: $((count + failed))/$total processed"
+        if [[ $((count + failed)) -lt $total ]]; then
+            echo -n "..."
+        fi
+        echo
     done
 
-    print_success "Updated $count out of $total vhost configuration(s)"
+    print_success "Successfully updated $count out of $total vhost configuration(s)"
+    if [[ $failed -gt 0 ]]; then
+        print_warning "$failed vhost(s) failed to update - check error messages above"
+    fi
 }
 
 # Test nginx configuration
@@ -173,19 +227,46 @@ verify_installation() {
         return 1
     fi
 
-    # Check if vhosts include the security config
+    # Count total and updated vhosts
+    local total_vhosts=0
     local includes_found=0
+    local missing_sites=()
+
     for vhost in /etc/nginx/fastpanel2-sites/*/*.conf; do
-        if [[ -f "$vhost" ]] && grep -q "fastpanel2-includes" "$vhost"; then
-            ((includes_found++))
+        if [[ -f "$vhost" ]]; then
+            ((total_vhosts++))
+            if grep -q "fastpanel2-includes" "$vhost"; then
+                ((includes_found++))
+            else
+                missing_sites+=("$(basename "$vhost")")
+            fi
         fi
     done
 
     if [[ $includes_found -gt 0 ]]; then
-        print_success "✓ Security include found in $includes_found vhost configuration(s)"
+        print_success "✓ Security include found in $includes_found/$total_vhosts vhost configuration(s)"
+
+        if [[ $includes_found -eq $total_vhosts ]]; then
+            print_success "✅ All WordPress sites are now protected!"
+        else
+            print_warning "⚠ ${#missing_sites[@]} site(s) missing security protection:"
+            for site in "${missing_sites[@]}"; do
+                print_status "  - $site"
+            done
+            print_status ""
+            print_status "To fix remaining sites manually, run:"
+            print_status "for conf_file in /etc/nginx/fastpanel2-sites/*/*.conf; do"
+            print_status "  if [[ -f \"\$conf_file\" ]] && ! grep -q \"fastpanel2-includes\" \"\$conf_file\"; then"
+            print_status "    sed -i '/include \\/etc\\/nginx\\/fastpanel2-includes\\/\\*\\.conf;/d' \"\$conf_file\""
+            print_status "    sed -i '/disable_symlinks if_not_owner from=\\$root_path;/a\\\\    # load security includes early\\\\    include /etc/nginx/fastpanel2-includes/*.conf;' \"\$conf_file\""
+            print_status "  fi"
+            print_status "done"
+            print_status "nginx -t && systemctl reload nginx"
+        fi
     else
-        print_warning "⚠ Security include not found in any vhost configuration"
-        print_status "  You may need to manually add the include to your vhost files"
+        print_error "✗ Security include not found in any vhost configuration"
+        print_status "  This indicates the installation failed to update any vhosts"
+        return 1
     fi
 }
 
