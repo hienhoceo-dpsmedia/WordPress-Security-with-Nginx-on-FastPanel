@@ -95,46 +95,28 @@ setup_nightly_automation() {
     print_header "Configuring Nightly Automation"
 
     local automation_script="/usr/local/sbin/wp-security-nightly.sh"
+    local nightly_dir="/usr/local/share/wp-security"
+    local nightly_script="${nightly_dir}/update-vhosts-nightly.sh"
     local cron_entry="30 2 * * * ${automation_script} >> /var/log/wp-security-nightly.log 2>&1"
-    local script_created=false
 
-    if [[ ! -f "$automation_script" ]]; then
-        cat <<'EOF' > "$automation_script"
-#!/bin/bash
+    mkdir -p "$nightly_dir"
 
-set -euo pipefail
-
-fetch() {
-    local url="$1"
-    local output="$2"
-
-    if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$url" -o "$output"
-    elif command -v wget >/dev/null 2>&1; then
-        wget -qO "$output" "$url"
+    print_status "Installing nightly vhost updater..."
+    if fetch_file "$RAW_URL/scripts/update-vhosts-nightly.sh" "$nightly_script"; then
+        chmod +x "$nightly_script"
+        print_success "Nightly updater stored at $nightly_script"
     else
-        echo "[ERROR] Neither curl nor wget available to fetch $url" >&2
+        print_error "Failed to install nightly updater script"
         exit 1
     fi
-}
 
-TMP_SCRIPT=$(mktemp)
-cleanup() {
-    rm -f "$TMP_SCRIPT"
-}
-trap cleanup EXIT
-
-fetch "https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/install-direct.sh" "$TMP_SCRIPT"
-bash "$TMP_SCRIPT"
-
-find /root -maxdepth 1 -type d -name 'backup-fastpanel2-sites-*' -mtime +7 -print0 | xargs -0r rm -rf
+    cat <<EOF > "$automation_script"
+#!/bin/bash
+set -euo pipefail
+"$nightly_script"
 EOF
-        chmod +x "$automation_script"
-        print_success "Created nightly automation script at $automation_script"
-        script_created=true
-    else
-        print_status "Nightly automation script already exists at $automation_script"
-    fi
+    chmod +x "$automation_script"
+    print_success "Nightly automation script ready at $automation_script"
 
     if crontab -l 2>/dev/null | grep -F "$automation_script" >/dev/null 2>&1; then
         print_status "Nightly cron job already configured"
@@ -143,9 +125,7 @@ EOF
         print_success "Scheduled nightly cron job at 02:30"
     fi
 
-    if [[ "$script_created" == true ]]; then
-        print_status "Nightly automation installed. Logs: /var/log/wp-security-nightly.log"
-    fi
+    print_status "Nightly automation installed. Logs: /var/log/wp-security-nightly.log"
 }
 
 # Download and install security configuration
@@ -388,7 +368,7 @@ show_completion() {
     print_status "Backup location: $BACKUP_DIR"
     print_status "Repository: $REPO_URL"
     echo
-    print_status "Nightly automation: /usr/local/sbin/wp-security-nightly.sh (runs daily at 02:30)"
+    print_status "Nightly automation: /usr/local/sbin/wp-security-nightly.sh → /usr/local/share/wp-security/update-vhosts-nightly.sh (02:30)"
     print_status "Logs: /var/log/wp-security-nightly.log"
     echo
     print_status "To uninstall: sudo bash <(curl -s $RAW_URL/scripts/uninstall.sh)"

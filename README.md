@@ -107,7 +107,7 @@ That's it! The script will:
 - ✅ Install security rules for all your FastPanel sites
 - ✅ Create automatic backups
 - ✅ Test basic protections
-- ✅ Set up a nightly cron job that re-runs the installer (02:30) and prunes backups older than 7 days, so new FastPanel sites get protected automatically
+- ✅ Set up a nightly cron job that runs a local vhost refresher (02:30) and prunes backups older than 7 days, so new FastPanel sites get protected automatically
 - ✅ Provide next steps
 
 ### Quick Test
@@ -326,9 +326,9 @@ The install script:
 - ✅ Updates all vhost configurations
 - ✅ Tests and reloads Nginx
 - ✅ Verifies the installation
-- ✅ Installs `/usr/local/sbin/wp-security-nightly.sh` and a cron entry (`30 2 * * *`) so the rules are re-applied nightly and old backups are rotated
+- ✅ Installs `/usr/local/sbin/wp-security-nightly.sh` (wrapper for `/usr/local/share/wp-security/update-vhosts-nightly.sh`) and a cron entry (`30 2 * * *`) so the rules are re-applied nightly and old backups are rotated
 
-Nightly automation logs to `/var/log/wp-security-nightly.log`. Adjust the schedule with `sudo crontab -e` if you prefer a different time or disable it by removing the cron line.
+Nightly automation logs to `/var/log/wp-security-nightly.log`. Adjust the schedule with `sudo crontab -e` if you prefer a different time or disable it by removing the cron line. The cron task calls the local updater script, so no nightly downloads are performed.
 ### Testing
 
 ```bash
@@ -521,7 +521,7 @@ wget --spider https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-sec
 
 ### Handling New Websites
 
-The installer creates a nightly cron job that re-runs itself (`/usr/local/sbin/wp-security-nightly.sh` at 02:30). Any new FastPanel site you add today will be picked up automatically tonight.
+The installer creates a nightly cron job that calls the local updater (`/usr/local/sbin/wp-security-nightly.sh` → `/usr/local/share/wp-security/update-vhosts-nightly.sh`) at 02:30. Any new FastPanel site you add today will be picked up automatically tonight without re-downloading the installer.
 
 Need instant coverage (or disabled the cron job)? Just rerun:
 
@@ -556,6 +556,7 @@ WordPress-Security-with-Nginx-on-FastPanel/
 │   └── wordpress-security.conf        # Main security configuration
 └── scripts/
     ├── install.sh                     # Automated installation script
+    ├── update-vhosts-nightly.sh       # Nightly FastPanel vhost refresher
     ├── uninstall.sh                   # Automated uninstallation script
     ├── test-security.sh               # Comprehensive security testing
     └── quick-test.sh                  # Quick security checks

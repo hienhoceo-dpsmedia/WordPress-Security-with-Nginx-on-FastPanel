@@ -68,30 +68,30 @@ setup_nightly_automation() {
     print_status "Configuring nightly automation..."
 
     local automation_script="/usr/local/sbin/wp-security-nightly.sh"
+    local nightly_dir="/usr/local/share/wp-security"
+    local nightly_script="${nightly_dir}/update-vhosts-nightly.sh"
     local cron_entry="30 2 * * * ${automation_script} >> /var/log/wp-security-nightly.log 2>&1"
+    local repo_root
+    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    local source_script="${repo_root}/scripts/update-vhosts-nightly.sh"
 
-    if [[ ! -f "$automation_script" ]]; then
-        cat <<'EOF' > "$automation_script"
-#!/bin/bash
-
-set -euo pipefail
-
-TMP_SCRIPT="$(mktemp)"
-cleanup() {
-    rm -f "$TMP_SCRIPT"
-}
-trap cleanup EXIT
-
-curl -fsSL https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/install-direct.sh -o "$TMP_SCRIPT"
-bash "$TMP_SCRIPT"
-
-find /root -maxdepth 1 -type d -name 'backup-fastpanel2-sites-*' -mtime +7 -print0 | xargs -0r rm -rf
-EOF
-        chmod +x "$automation_script"
-        print_success "Created nightly automation script at $automation_script"
-    else
-        print_warning "Nightly automation script already exists at $automation_script"
+    if [[ ! -f "$source_script" ]]; then
+        print_error "Nightly updater script missing from repository: $source_script"
+        exit 1
     fi
+
+    mkdir -p "$nightly_dir"
+    cp "$source_script" "$nightly_script"
+    chmod 755 "$nightly_script"
+    print_success "Nightly updater installed at $nightly_script"
+
+    cat <<EOF > "$automation_script"
+#!/bin/bash
+set -euo pipefail
+"$nightly_script"
+EOF
+    chmod +x "$automation_script"
+    print_success "Nightly automation script ready at $automation_script"
 
     if crontab -l 2>/dev/null | grep -F "$automation_script" >/dev/null 2>&1; then
         print_status "Nightly cron job already configured"
@@ -266,7 +266,7 @@ main() {
         echo "3. Monitor your logs for any blocked attempts"
         echo
         print_status "Your backup is located at: $BACKUP_DIR"
-        print_status "Nightly automation script: /usr/local/sbin/wp-security-nightly.sh (runs at 02:30 daily)"
+        print_status "Nightly automation script: /usr/local/sbin/wp-security-nightly.sh → /usr/local/share/wp-security/update-vhosts-nightly.sh (02:30 daily)"
 
     else
         print_error "Nginx configuration test failed. Please check the error above."
