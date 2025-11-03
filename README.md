@@ -27,6 +27,7 @@ A step-by-step, copy-paste friendly guide that protects WordPress sites at the N
 - 🔧 **FastPanel Optimized** - Specifically designed for FastPanel's directory structure
 - 📊 **Progress Tracking** - Visual progress indicators during installation
 - 🗂️ **Smart Backups** - Automatic backups before any changes
+- 🤖 **Bot Verification** - Rejects fake Googlebot crawlers by validating official IP ranges
 
 ## 🎯 What This Protects Against
 
@@ -39,6 +40,7 @@ A step-by-step, copy-paste friendly guide that protects WordPress sites at the N
 | **Attack Patterns** | Filters malicious query strings and attack signatures |
 | **Hidden Files** | Prevents access to `.git`, `.svn`, `.htaccess` files |
 | **Dangerous Scripts** | Blocks execution of `.cgi`, `.pl`, `.py`, `.sh` files |
+| **Fake Googlebot Crawlers** | Verifies Googlebot user agents against Google's published IP ranges |
 
 ## 🚀 Quick Demo
 
@@ -84,8 +86,49 @@ We use Nginx location rules to deny access to those things at the webserver leve
 | **Development Files** | `readme.html`, `license.txt` | 🟢 Low - Reduces information disclosure |
 | **Known Exploits** | `timthumb.php`, `webshell.php` | 🔴 High - Blocks common attacks |
 | **Attack Patterns** | SQL injection, XSS patterns | 🔴 High - Filters malicious requests |
+| **Fake Googlebot Crawlers** | Validates User-Agent + IP against Google's published ranges | 🔴 High - Stops malicious crawlers posing as Google |
 
 **🛡️ Total Coverage:** 20+ attack vectors blocked at the webserver level
+
+## 🕷️ Googlebot Verification (New)
+
+Bad actors often spoof the `Googlebot` user agent to bypass allowlists or rate limits.  
+The installer now validates every Googlebot request by combining two signals:
+
+- A managed `map` of official Googlebot IPv4/IPv6 ranges fetched from Google's public JSON endpoint.
+- A curated list of Googlebot user agents (Search, AdsBot, InspectionTool, etc.).
+
+If the user agent claims to be Googlebot but the source IP is not in Google's published ranges, the request is blocked immediately with **HTTP 403**.  
+Fresh ranges are downloaded nightly by `/usr/local/share/wp-security/update-googlebot-map.py` and written to:
+
+- `/etc/nginx/fastpanel2-includes/googlebot-verify-http.conf` — `map` definitions loaded in the global `http {}` block.
+- `/etc/nginx/fastpanel2-includes/googlebot-verified.map` — the CIDR list used by the `map`.
+
+Need an ad-hoc refresh?
+
+```bash
+sudo python3 /usr/local/share/wp-security/update-googlebot-map.py
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 🧪 How to Test Googlebot Blocking
+
+1. Refresh the CIDR data (optional but recommended before testing):
+
+   ```bash
+   sudo python3 /usr/local/share/wp-security/update-googlebot-map.py
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+2. From any non-Google IP, spoof the Googlebot user agent:
+
+   ```bash
+   curl -I -A "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" https://your-domain.com/
+   ```
+
+   Because the source IP is unverified, the response should be `HTTP/1.1 403 Forbidden`.
+
+3. Inspect `/var/log/nginx/access.log` and confirm the entry shows status `403` for the spoofed request while legitimate Googlebot traffic continues to receive `200`.
 
 ## Prerequisites
 

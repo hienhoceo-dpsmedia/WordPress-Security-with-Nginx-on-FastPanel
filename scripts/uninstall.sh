@@ -13,6 +13,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+GOOGLE_MAP_PATH="/etc/nginx/fastpanel2-includes/googlebot-verified.map"
+GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.conf"
+NGINX_CONF_PATH="/etc/nginx/nginx.conf"
+
 # Function to print colored output
 print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -56,6 +60,14 @@ backup_before_uninstall() {
 
     if [[ -f "/etc/nginx/fastpanel2-includes/wordpress-security.conf" ]]; then
         cp /etc/nginx/fastpanel2-includes/wordpress-security.conf "$BACKUP_DIR/"
+    fi
+
+    if [[ -f "$GOOGLE_HTTP_INCLUDE" ]]; then
+        cp "$GOOGLE_HTTP_INCLUDE" "$BACKUP_DIR/"
+    fi
+
+    if [[ -f "$GOOGLE_MAP_PATH" ]]; then
+        cp "$GOOGLE_MAP_PATH" "$BACKUP_DIR/"
     fi
 
     print_success "Backup created at: $BACKUP_DIR"
@@ -103,6 +115,36 @@ remove_security_config() {
     fi
 }
 
+remove_googlebot_protection() {
+    print_status "Removing Googlebot verification assets..."
+
+    if [[ -f "$NGINX_CONF_PATH" ]] && grep -Fq "$GOOGLE_HTTP_INCLUDE" "$NGINX_CONF_PATH"; then
+        local nginx_backup="/root/backup-nginx.conf-before-uninstall-$(date +%F_%T).conf"
+        cp "$NGINX_CONF_PATH" "$nginx_backup"
+        if sed -i "\#${GOOGLE_HTTP_INCLUDE}#d" "$NGINX_CONF_PATH"; then
+            print_success "Removed Googlebot include from nginx.conf (backup: $nginx_backup)"
+        else
+            print_warning "Failed to update nginx.conf; restore from $nginx_backup if needed"
+        fi
+    fi
+
+    if [[ -f "$GOOGLE_HTTP_INCLUDE" ]]; then
+        rm "$GOOGLE_HTTP_INCLUDE"
+        print_success "Removed Googlebot HTTP include"
+    fi
+
+    if [[ -f "$GOOGLE_MAP_PATH" ]]; then
+        rm "$GOOGLE_MAP_PATH"
+        print_success "Removed Googlebot CIDR map"
+    fi
+
+    local nightly_google_script="/usr/local/share/wp-security/update-googlebot-map.py"
+    if [[ -f "$nightly_google_script" ]]; then
+        rm "$nightly_google_script"
+        print_success "Removed Googlebot updater script at $nightly_google_script"
+    fi
+}
+
 # Test nginx configuration
 test_nginx() {
     print_status "Testing nginx configuration..."
@@ -131,6 +173,18 @@ reload_nginx() {
 # Verify uninstallation
 verify_uninstall() {
     print_status "Verifying uninstallation..."
+
+    if [[ -f "$GOOGLE_HTTP_INCLUDE" ]]; then
+        print_warning "Googlebot HTTP include still exists at $GOOGLE_HTTP_INCLUDE"
+    else
+        print_success "Googlebot HTTP include removed"
+    fi
+
+    if [[ -f "$GOOGLE_MAP_PATH" ]]; then
+        print_warning "Googlebot CIDR map still exists at $GOOGLE_MAP_PATH"
+    else
+        print_success "Googlebot CIDR map removed"
+    fi
 
     # Check if security include file was removed
     if [[ ! -f "/etc/nginx/fastpanel2-includes/wordpress-security.conf" ]]; then
@@ -186,6 +240,7 @@ main() {
     backup_before_uninstall
     remove_from_vhosts
     remove_security_config
+    remove_googlebot_protection
 
     # Test and reload
     if test_nginx; then

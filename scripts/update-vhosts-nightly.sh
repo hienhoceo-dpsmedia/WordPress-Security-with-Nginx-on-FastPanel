@@ -30,6 +30,11 @@ print_error() {
 
 FASTPANEL_DIR="/etc/nginx/fastpanel2-sites"
 INCLUDE_FILE="/etc/nginx/fastpanel2-includes/wordpress-security.conf"
+GOOGLE_MAP_PATH="/etc/nginx/fastpanel2-includes/googlebot-verified.map"
+GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.conf"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GOOGLEBOT_UPDATE_SCRIPT="${SCRIPT_DIR}/update-googlebot-map.py"
 
 check_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -48,6 +53,19 @@ ensure_prerequisites() {
         print_error "Security include missing: $INCLUDE_FILE"
         print_status "Re-run the main installer to recreate it."
         exit 1
+    fi
+}
+
+refresh_googlebot_map() {
+    if [[ ! -x "$GOOGLEBOT_UPDATE_SCRIPT" ]]; then
+        print_warning "Googlebot updater script not found at $GOOGLEBOT_UPDATE_SCRIPT"
+        return
+    fi
+
+    if python3 "$GOOGLEBOT_UPDATE_SCRIPT" --quiet --map-path "$GOOGLE_MAP_PATH" --http-include-path "$GOOGLE_HTTP_INCLUDE"; then
+        print_success "Googlebot CIDR map refreshed"
+    else
+        print_warning "Failed to refresh Googlebot CIDR map"
     fi
 }
 
@@ -120,6 +138,7 @@ main() {
     print_status "Starting nightly FastPanel vhost refresh"
     check_root
     ensure_prerequisites
+    refresh_googlebot_map
     create_backup
     refresh_vhosts
     validate_and_reload

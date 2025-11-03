@@ -15,6 +15,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+GOOGLE_MAP_PATH="/etc/nginx/fastpanel2-includes/googlebot-verified.map"
+GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.conf"
+NGINX_CONF_PATH="/etc/nginx/nginx.conf"
+
 # Function to print colored output
 print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -73,6 +77,11 @@ ensure_dependencies() {
         missing=1
     fi
 
+    if ! command -v python3 >/dev/null 2>&1; then
+        print_error "python3 is required but not installed. Please install python3 and re-run this script."
+        missing=1
+    fi
+
     if [[ $missing -ne 0 ]]; then
         exit 1
     fi
@@ -97,6 +106,7 @@ setup_nightly_automation() {
     local automation_script="/usr/local/sbin/wp-security-nightly.sh"
     local nightly_dir="/usr/local/share/wp-security"
     local nightly_script="${nightly_dir}/update-vhosts-nightly.sh"
+    local googlebot_script="${nightly_dir}/update-googlebot-map.py"
     local cron_entry="30 2 * * * ${automation_script} >> /var/log/wp-security-nightly.log 2>&1"
 
     mkdir -p "$nightly_dir"
@@ -110,9 +120,19 @@ setup_nightly_automation() {
         exit 1
     fi
 
+    print_status "Ensuring Googlebot map updater..."
+    if fetch_file "$RAW_URL/scripts/update-googlebot-map.py" "$googlebot_script"; then
+        chmod +x "$googlebot_script"
+        print_success "Googlebot map updater stored at $googlebot_script"
+    else
+        print_error "Failed to install Googlebot map updater script"
+        exit 1
+    fi
+
     cat <<EOF > "$automation_script"
 #!/bin/bash
 set -euo pipefail
+python3 "$googlebot_script" --quiet || { echo "[WARNING] googlebot map refresh failed" >&2; }
 "$nightly_script"
 EOF
     chmod +x "$automation_script"
@@ -148,6 +168,100 @@ install_security_config() {
     # Set proper permissions
     chmod 644 /etc/nginx/fastpanel2-includes/wordpress-security.conf
     print_success "Set permissions on security configuration"
+}
+
+ensure_googlebot_http_include() {
+    if [[ ! -f "$NGINX_CONF_PATH" ]]; then
+        print_error "nginx.conf not found at $NGINX_CONF_PATH"
+        exit 1
+    fi
+
+    if grep -Fq "$GOOGLE_HTTP_INCLUDE" "$NGINX_CONF_PATH"; then
+        print_status "Googlebot HTTP include already present in nginx.conf"
+        return 0
+    fi
+
+    local backup_path="/root/backup-nginx.conf-$(date +%F_%T).conf"
+    cp "$NGINX_CONF_PATH" "$backup_path"
+
+    if ! python3 - "$NGINX_CONF_PATH" "$GOOGLE_HTTP_INCLUDE" <<'PY'
+import sys
+import pathlib
+
+nginx_conf = pathlib.Path(sys.argv[1])
+include_path = sys.argv[2]
+include_line = f"    include {include_path};"
+
+text = nginx_conf.read_text()
+if include_path in text:
+    raise SystemExit(0)
+
+lines = text.splitlines()
+output_lines = []
+inserted = False
+await_brace = False
+
+for line in lines:
+    stripped = line.strip()
+    output_lines.append(line)
+
+    if inserted:
+        continue
+
+    if not await_brace and stripped.startswith("http"):
+        if "{" in stripped:
+            indent = line[: len(line) - len(line.lstrip())]
+            output_lines.append(f"{indent}{include_line}")
+            inserted = True
+        else:
+            await_brace = True
+    elif await_brace and "{" in stripped:
+        indent = line[: len(line) - len(line.lstrip())]
+        output_lines.append(f"{indent}{include_line}")
+        inserted = True
+        await_brace = False
+
+if not inserted:
+    raise SystemExit("Unable to locate http block in nginx.conf; aborting include insertion.")
+
+output = "\n".join(output_lines) + "\n"
+nginx_conf.write_text(output)
+PY
+    then
+        print_error "Failed to insert Googlebot HTTP include into nginx.conf"
+        print_status "A backup of nginx.conf is available at: $backup_path"
+        exit 1
+    fi
+
+    print_success "Added Googlebot HTTP include to nginx.conf (backup: $backup_path)"
+}
+
+install_googlebot_protection() {
+    print_header "Installing Googlebot Verification"
+
+    mkdir -p /etc/nginx/fastpanel2-includes
+    ensure_googlebot_http_include
+
+    local nightly_dir="/usr/local/share/wp-security"
+    local googlebot_script="${nightly_dir}/update-googlebot-map.py"
+
+    mkdir -p "$nightly_dir"
+
+    print_status "Downloading Googlebot map script..."
+    if fetch_file "$RAW_URL/scripts/update-googlebot-map.py" "$googlebot_script"; then
+        chmod +x "$googlebot_script"
+        print_success "Googlebot map script stored at $googlebot_script"
+    else
+        print_error "Failed to download Googlebot map script"
+        exit 1
+    fi
+
+    if python3 "$googlebot_script" --map-path "$GOOGLE_MAP_PATH" --http-include-path "$GOOGLE_HTTP_INCLUDE"; then
+        print_success "Googlebot verification data generated"
+    else
+        print_error "Failed to generate Googlebot verification data"
+        exit 1
+    fi
 }
 
 # Backup existing vhost configurations
@@ -291,6 +405,18 @@ reload_nginx() {
 verify_installation() {
     print_header "Verifying Installation"
 
+    if [[ -f "$GOOGLE_HTTP_INCLUDE" ]]; then
+        print_success "✓ Googlebot HTTP include exists"
+    else
+        print_warning "⚠ Googlebot HTTP include missing at $GOOGLE_HTTP_INCLUDE"
+    fi
+
+    if [[ -f "$GOOGLE_MAP_PATH" ]]; then
+        print_success "✓ Googlebot CIDR map exists"
+    else
+        print_warning "⚠ Googlebot CIDR map missing at $GOOGLE_MAP_PATH"
+    fi
+
     # Check if security include exists
     if [[ -f "/etc/nginx/fastpanel2-includes/wordpress-security.conf" ]]; then
         print_success "✓ Security include file exists"
@@ -359,6 +485,7 @@ show_completion() {
     echo "  • Sensitive file access blocking"
     echo "  • Backup and development file protection"
     echo "  • Known exploit pattern blocking"
+    echo "  • Fake Googlebot detection via IP range verification"
     echo
     print_status "Next steps:"
     echo "1. Test your security: curl -s $RAW_URL/scripts/quick-test.sh | bash -s your-domain.com"
@@ -369,6 +496,7 @@ show_completion() {
     print_status "Repository: $REPO_URL"
     echo
     print_status "Nightly automation: /usr/local/sbin/wp-security-nightly.sh → /usr/local/share/wp-security/update-vhosts-nightly.sh (02:30)"
+    print_status "Googlebot map updater: /usr/local/share/wp-security/update-googlebot-map.py (auto refreshed nightly)"
     print_status "Logs: /var/log/wp-security-nightly.log"
     echo
     print_status "To uninstall: sudo bash <(curl -s $RAW_URL/scripts/uninstall.sh)"
@@ -389,6 +517,7 @@ main() {
     ensure_dependencies
 
     # Install components
+    install_googlebot_protection
     install_security_config
     backup_vhosts
     update_vhosts
