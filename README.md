@@ -202,13 +202,17 @@ This generates:
 - `/etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc`
 - `/etc/nginx/fastpanel2-includes/googlebot-verified.map`
 
-Finally, open `/etc/nginx/nginx.conf` and inside the top-level `http { ... }` block ensure you have:
+Finally, make the include persistent by dropping a tiny bridge file under `conf.d`:
 
-```nginx
-    include /etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc;
+```bash
+sudo tee /etc/nginx/conf.d/wp-googlebot-verify.conf >/dev/null <<'EOF'
+# Managed by WordPress Security with Nginx on FastPanel
+include /etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc;
+EOF
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Reloading Nginx after the commands above will pick up the include immediately.
+FastPanel leaves `conf.d/*.conf` alone, so the Googlebot variables remain available even when new sites are created.
 
 ### 1 — Create the Nginx security include file (one file for all sites)
 

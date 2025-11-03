@@ -32,6 +32,7 @@ FASTPANEL_DIR="/etc/nginx/fastpanel2-sites"
 INCLUDE_FILE="/etc/nginx/fastpanel2-includes/wordpress-security.conf"
 GOOGLE_MAP_PATH="/etc/nginx/fastpanel2-includes/googlebot-verified.map"
 GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc"
+GOOGLE_HTTP_BRIDGE="/etc/nginx/conf.d/wp-googlebot-verify.conf"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GOOGLEBOT_UPDATE_SCRIPT="${SCRIPT_DIR}/update-googlebot-map.py"
@@ -60,6 +61,18 @@ refresh_googlebot_map() {
     if [[ ! -x "$GOOGLEBOT_UPDATE_SCRIPT" ]]; then
         print_warning "Googlebot updater script not found at $GOOGLEBOT_UPDATE_SCRIPT"
         return
+    fi
+
+    local include_line="include $GOOGLE_HTTP_INCLUDE;"
+    mkdir -p /etc/nginx/conf.d
+    if [[ ! -f "$GOOGLE_HTTP_BRIDGE" ]] || ! grep -Fq "$include_line" "$GOOGLE_HTTP_BRIDGE"; then
+        cat <<EOF > "$GOOGLE_HTTP_BRIDGE"
+# Managed by WordPress Security with Nginx on FastPanel
+# Ensures Googlebot verification variables are defined at http{} scope.
+$include_line
+EOF
+        chmod 644 "$GOOGLE_HTTP_BRIDGE"
+        print_success "Googlebot HTTP bridge refreshed at $GOOGLE_HTTP_BRIDGE"
     fi
 
     if python3 "$GOOGLEBOT_UPDATE_SCRIPT" --quiet --map-path "$GOOGLE_MAP_PATH" --http-include-path "$GOOGLE_HTTP_INCLUDE"; then

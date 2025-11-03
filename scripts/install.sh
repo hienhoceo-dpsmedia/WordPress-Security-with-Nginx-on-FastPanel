@@ -19,7 +19,7 @@ RAW_BASE_URL="https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-sec
 # Googlebot verification paths
 GOOGLE_MAP_PATH="/etc/nginx/fastpanel2-includes/googlebot-verified.map"
 GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc"
-NGINX_CONF_PATH="/etc/nginx/nginx.conf"
+GOOGLE_HTTP_BRIDGE="/etc/nginx/conf.d/wp-googlebot-verify.conf"
 
 # Function to print colored output
 print_status() {
@@ -131,69 +131,21 @@ create_includes_dir() {
 }
 
 ensure_googlebot_http_include() {
-    if [[ ! -f "$NGINX_CONF_PATH" ]]; then
-        print_error "nginx.conf not found at $NGINX_CONF_PATH"
-        exit 1
-    fi
+    local include_line="include $GOOGLE_HTTP_INCLUDE;"
+    mkdir -p /etc/nginx/conf.d
 
-    if grep -Fq "$GOOGLE_HTTP_INCLUDE" "$NGINX_CONF_PATH"; then
-        print_status "Googlebot HTTP include already present in nginx.conf"
+    if [[ -f "$GOOGLE_HTTP_BRIDGE" ]] && grep -Fq "$include_line" "$GOOGLE_HTTP_BRIDGE"; then
+        print_status "Googlebot HTTP bridge already present at $GOOGLE_HTTP_BRIDGE"
         return 0
     fi
 
-    local backup_path="/root/backup-nginx.conf-$(date +%F_%T).conf"
-    cp "$NGINX_CONF_PATH" "$backup_path"
-
-    if ! python3 - "$NGINX_CONF_PATH" "$GOOGLE_HTTP_INCLUDE" <<'PY'
-import sys
-import pathlib
-
-nginx_conf = pathlib.Path(sys.argv[1])
-include_path = sys.argv[2]
-include_line = f"    include {include_path};"
-
-text = nginx_conf.read_text()
-if include_path in text:
-    raise SystemExit(0)
-
-lines = text.splitlines()
-output_lines = []
-inserted = False
-await_brace = False
-
-for line in lines:
-    stripped = line.strip()
-    output_lines.append(line)
-
-    if inserted:
-        continue
-
-    if not await_brace and stripped.startswith("http"):
-        if "{" in stripped:
-            indent = line[: len(line) - len(line.lstrip())]
-            output_lines.append(f"{indent}{include_line}")
-            inserted = True
-        else:
-            await_brace = True
-    elif await_brace and "{" in stripped:
-        indent = line[: len(line) - len(line.lstrip())]
-        output_lines.append(f"{indent}{include_line}")
-        inserted = True
-        await_brace = False
-
-if not inserted:
-    raise SystemExit("Unable to locate http block in nginx.conf; aborting include insertion.")
-
-output = "\n".join(output_lines) + "\n"
-nginx_conf.write_text(output)
-PY
-    then
-        print_error "Failed to insert Googlebot HTTP include into nginx.conf"
-        print_status "A backup of nginx.conf is available at: $backup_path"
-        exit 1
-    fi
-
-    print_success "Added Googlebot HTTP include to nginx.conf (backup: $backup_path)"
+    cat <<EOF > "$GOOGLE_HTTP_BRIDGE"
+# Managed by WordPress Security with Nginx on FastPanel
+# Ensures Googlebot verification variables are defined at http{} scope.
+$include_line
+EOF
+    chmod 644 "$GOOGLE_HTTP_BRIDGE"
+    print_success "Created Googlebot HTTP bridge at $GOOGLE_HTTP_BRIDGE"
 }
 
 install_googlebot_protection() {
@@ -319,6 +271,12 @@ verify_installation() {
         print_success "Googlebot HTTP include exists"
     else
         print_warning "Googlebot HTTP include missing at $GOOGLE_HTTP_INCLUDE"
+    fi
+
+    if [[ -f "$GOOGLE_HTTP_BRIDGE" ]]; then
+        print_success "Googlebot HTTP bridge exists at $GOOGLE_HTTP_BRIDGE"
+    else
+        print_warning "Googlebot HTTP bridge missing at $GOOGLE_HTTP_BRIDGE"
     fi
 
     if [[ -f "$GOOGLE_MAP_PATH" ]]; then
