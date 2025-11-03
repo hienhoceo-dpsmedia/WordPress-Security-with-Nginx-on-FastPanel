@@ -114,7 +114,7 @@ def render_http_include(map_path: pathlib.Path) -> List[str]:
         # Auto-generated Googlebot verification rules
         # Generated: {timestamp}
 
-        map $remote_addr $is_verified_googlebot {{
+        geo $is_verified_googlebot {{
             default 0;
             include {map_path};
         }}

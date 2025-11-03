@@ -101,7 +101,7 @@ The installer now validates every Googlebot request by combining two signals:
 If the user agent claims to be Googlebot but the source IP is not in Google's published ranges, the request is blocked immediately with **HTTP 403**.  
 Fresh ranges are downloaded nightly by `/usr/local/share/wp-security/update-googlebot-map.py` and written to:
 
-- `/etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc` — `map` definitions loaded in the global `http {}` block.
+- `/etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc` — `geo`/`map` definitions loaded in the global `http {}` block.
 - `/etc/nginx/fastpanel2-includes/googlebot-verified.map` — the CIDR list used by the `map`.
 
 Need an ad-hoc refresh?
