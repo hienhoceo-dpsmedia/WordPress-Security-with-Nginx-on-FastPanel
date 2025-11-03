@@ -31,7 +31,7 @@ print_error() {
 FASTPANEL_DIR="/etc/nginx/fastpanel2-sites"
 INCLUDE_FILE="/etc/nginx/fastpanel2-includes/wordpress-security.conf"
 GOOGLE_MAP_PATH="/etc/nginx/fastpanel2-includes/googlebot-verified.map"
-GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.conf"
+GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GOOGLEBOT_UPDATE_SCRIPT="${SCRIPT_DIR}/update-googlebot-map.py"

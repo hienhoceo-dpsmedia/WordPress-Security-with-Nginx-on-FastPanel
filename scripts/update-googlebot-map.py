@@ -23,7 +23,7 @@ from typing import Iterable, List
 
 DEFAULT_DATA_URL = "https://developers.google.com/search/apis/ipranges/googlebot.json"
 DEFAULT_MAP_PATH = "/etc/nginx/fastpanel2-includes/googlebot-verified.map"
-DEFAULT_HTTP_INCLUDE_PATH = "/etc/nginx/fastpanel2-includes/googlebot-verify-http.conf"
+DEFAULT_HTTP_INCLUDE_PATH = "/etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc"
 
 
 class GooglebotMapError(Exception):

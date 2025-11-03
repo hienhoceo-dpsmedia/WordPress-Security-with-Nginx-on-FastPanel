@@ -18,7 +18,7 @@ RAW_BASE_URL="https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-sec
 
 # Googlebot verification paths
 GOOGLE_MAP_PATH="/etc/nginx/fastpanel2-includes/googlebot-verified.map"
-GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.conf"
+GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc"
 NGINX_CONF_PATH="/etc/nginx/nginx.conf"
 
 # Function to print colored output
