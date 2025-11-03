@@ -93,13 +93,12 @@ def write_file_atomic(path: pathlib.Path, lines: Iterable[str]) -> None:
 
 
 def render_map_file(prefixes: Iterable[str]) -> List[str]:
-    timestamp = _dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     header = textwrap.dedent(
         f"""\
         # Auto-generated Googlebot CIDR map
         # Source: {DEFAULT_DATA_URL}
         # Generated: {timestamp}
-        default 0;
         """
     )
     lines = [header]
@@ -109,7 +108,7 @@ def render_map_file(prefixes: Iterable[str]) -> List[str]:
 
 
 def render_http_include(map_path: pathlib.Path) -> List[str]:
-    timestamp = _dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     content = textwrap.dedent(
         f"""\
         # Auto-generated Googlebot verification rules
