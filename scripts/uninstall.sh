@@ -6,6 +6,8 @@
 
 set -euo pipefail
 
+AUTO_CONFIRM=false
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -33,6 +35,33 @@ print_warning() {
 
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+usage() {
+    echo "Usage: $0 [--yes]"
+    echo
+    echo "Options:"
+    echo "  -y, --yes    Skip confirmation prompt and uninstall immediately."
+}
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -y|--yes)
+                AUTO_CONFIRM=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                print_error "Unknown option: $1"
+                usage
+                exit 1
+                ;;
+        esac
+    done
 }
 
 # Check if running as root
@@ -238,15 +267,22 @@ main() {
     print_warning "Your sites will be less protected after this operation."
     echo
 
-    # Ask for confirmation
-    read -p "Are you sure you want to continue? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_status "Uninstallation cancelled."
-        exit 0
-    fi
+    parse_args "$@"
 
-    echo
+    if [[ "$AUTO_CONFIRM" != true ]]; then
+        if [[ -t 0 ]]; then
+            read -p "Are you sure you want to continue? (y/N): " -n 1 -r
+            echo
+        else
+            read -p "Are you sure you want to continue? (y/N): " -n 1 -r < /dev/tty || REPLY=""
+            echo
+        fi
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_status "Uninstallation cancelled."
+            exit 0
+        fi
+        echo
+    fi
 
     # Run checks
     check_root
