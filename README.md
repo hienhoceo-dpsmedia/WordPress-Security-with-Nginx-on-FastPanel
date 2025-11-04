@@ -20,6 +20,7 @@ A step-by-step, copy-paste friendly guide that protects WordPress sites at the N
 ## ✨ Features
 
 - 🛡️ **Comprehensive Protection** - Blocks PHP execution in uploads, sensitive file access, backup files, and known exploit patterns
+- 🚫 **Request Validation Maps** - Rejects bad HTTP verbs, spam referers, malicious query strings, and abusive bots before PHP sees them
 - 🚀 **One-Command Setup** - Install security rules for all WordPress sites with a single command
 - 🔄 **Automatic Updates** - Nightly cron job protects new websites automatically
 - ✅ **Built-in Testing** - Comprehensive security test scripts included
@@ -41,6 +42,8 @@ A step-by-step, copy-paste friendly guide that protects WordPress sites at the N
 | **Hidden Files** | Prevents access to `.git`, `.svn`, `.htaccess` files |
 | **Dangerous Scripts** | Blocks execution of `.cgi`, `.pl`, `.py`, `.sh` files |
 | **Fake Googlebot Crawlers** | Verifies Googlebot user agents against Google's published IP ranges |
+| **Bad Bots & Spam Referers** | Drops abusive user agents, referrers, and suspicious cookies at the edge |
+| **Disallowed HTTP Verbs** | Returns `405` for TRACE/CONNECT/other unused methods |
 
 ## ⚡ Quick Reference
 
@@ -50,6 +53,7 @@ A step-by-step, copy-paste friendly guide that protects WordPress sites at the N
   `sudo python3 /usr/local/share/wp-security/update-googlebot-map.py && sudo nginx -t && sudo systemctl reload nginx`
 - Run security verification:  
   `wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/scripts/test-security.sh | bash -s your-domain.com`
+- Optional logging tip: append `$ng_reason` to your `log_format` to record the rule that blocked each request.
 - Uninstall (removes all includes + cron):  
   ```bash
   curl -fsSL -o /tmp/wpsec-uninstall.sh \
@@ -144,6 +148,26 @@ sudo nginx -t && sudo systemctl reload nginx
    Because the source IP is unverified, the response should be `HTTP/1.1 403 Forbidden`.
 
 3. Inspect `/var/log/nginx/access.log` and confirm the entry shows status `403` for the spoofed request while legitimate Googlebot traffic continues to receive `200`.
+
+## 🛡️ Request Validation Maps (New)
+
+Alongside the location-based blocks, the installer now ships an HTTP-scope include (`/etc/nginx/fastpanel2-includes/wordpress-security-http.mapinc`) that provides fast, low-overhead filtering before requests ever hit PHP. It currently enforces:
+
+- **HTTP verb allowlist** – TRACE, TRACK, CONNECT, MOVE, and DEBUG receive an immediate `405`.
+- **Cookie / referer sanity checks** – strips obvious header injection attempts and SEO spam referers.
+- **Query string heuristics** – drops requests carrying traversal (`../`), SQLi (`union select`), LFI (`etc/passwd`), or `eval()` payloads.
+- **URI fingerprints** – denies direct hits on well-known shells, admin tools, backup archives, and hidden folders.
+- **Abusive user agents** – blocks scanners such as `sqlmap`, `curl`, `python-urllib`, `Bytespider`, `MJ12bot`, `Ahrefs`, etc.
+
+Every rule appends a hint to `$ng_reason`, so if you extend your `log_format` (recommended) you immediately see why a request was rejected:
+
+```nginx
+log_format main '$remote_addr - $remote_user [$time_local] '
+                 '"$request" $status $body_bytes_sent '
+                 '"$http_referer" "$http_user_agent" $ng_reason';
+```
+
+Upgrade path: re-run the installer (or copy the new map + bridge include) so the file is present under `/etc/nginx/fastpanel2-includes/`. Nightly refreshes keep the bridge up to date automatically.
 
 ## Prerequisites
 
@@ -431,6 +455,8 @@ Nightly automation logs to `/var/log/wp-security-nightly.log`. Adjust the schedu
 ```
 
 > ℹ️ The comprehensive test now creates temporary “bait” files in your document root (backups, shells, etc.) so the Nginx rules can return real 403 responses. They are removed automatically when the script exits. Use `--no-fixtures` if you prefer to skip creating those files.
+>
+> ✅ New coverage: disallowed HTTP verbs, spam referers/cookies, malicious bot user agents, and archive/command query probes are exercised automatically. The script reports the exact HTTP status (or connection drop) expected for each case.
 
 ### Uninstallation
 
