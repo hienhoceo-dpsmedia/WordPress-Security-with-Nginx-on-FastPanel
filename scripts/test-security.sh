@@ -46,10 +46,13 @@ BACKUP_FILES=(
     "/wp-config.php.old"
     "/wp-config.php~"
     "/database.sql"
-    "/site.tar.gz"
     "/wp-content/uploads/backup.sql"
     "/.env"
     "/.htaccess"
+)
+
+ALLOWED_ARCHIVE_FILES=(
+    "/site.tar.gz"
 )
 
 DANGEROUS_SCRIPTS=(
@@ -245,6 +248,10 @@ setup_fixtures() {
     for path in "${CACHE_PHP_FILES_ALLOWED[@]}"; do
         create_fixture "$path"
     done
+
+    for path in "${ALLOWED_ARCHIVE_FILES[@]}"; do
+        create_fixture "$path"
+    done
 }
 
 # Print usage information
@@ -438,6 +445,20 @@ test_backup_files() {
     done
 }
 
+# Test allowed backup archives
+test_allowed_archives() {
+    if [[ ${#ALLOWED_ARCHIVE_FILES[@]} -eq 0 ]]; then
+        return
+    fi
+
+    print_header "Testing Allowed Backup Archives (Should Return 200)"
+
+    for file in "${ALLOWED_ARCHIVE_FILES[@]}"; do
+        test_url "$file" "200" "Access to $file should be accessible"
+        test_url_direct "$file" "200" "Access to $file should be accessible"
+    done
+}
+
 # Test dangerous script types
 test_dangerous_scripts() {
     print_header "Testing Dangerous Script Types (Should Return 403)"
@@ -579,6 +600,7 @@ main() {
     test_upload_php
     test_cache_php_allowed
     test_backup_files
+    test_allowed_archives
     test_dangerous_scripts
     test_exploit_files
     test_attack_patterns
