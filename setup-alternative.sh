@@ -108,7 +108,7 @@ show_manual_instructions() {
     echo "   sudo ./install.sh"
     echo
     echo "4. Test your setup:"
-    echo "   curl -s $RAW_URL/scripts/quick-test.sh | bash -s your-domain.com"
+    echo "   curl -s $RAW_URL/scripts/test-security.sh | bash -s your-domain.com"
 }
 
 # Check network connectivity

@@ -48,8 +48,8 @@ A step-by-step, copy-paste friendly guide that protects WordPress sites at the N
   `wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/install-direct.sh | sudo bash`
 - Refresh Googlebot ranges manually:  
   `sudo python3 /usr/local/share/wp-security/update-googlebot-map.py && sudo nginx -t && sudo systemctl reload nginx`
-- Run quick verification:  
-  `wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/scripts/quick-test.sh | bash -s your-domain.com`
+- Run security verification:  
+  `wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/scripts/test-security.sh | bash -s your-domain.com`
 - Uninstall (removes all includes + cron):  
   ```bash
   curl -fsSL -o /tmp/wpsec-uninstall.sh \
@@ -64,7 +64,7 @@ A step-by-step, copy-paste friendly guide that protects WordPress sites at the N
 wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/install-direct.sh | sudo bash
 
 # Test protections
-wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/scripts/quick-test.sh | bash -s your-domain.com
+wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/scripts/test-security.sh | bash -s your-domain.com
 ```
 
 **Expected Results:**
@@ -168,11 +168,21 @@ That's it! The script will:
 - ✅ Set up a nightly cron job that runs a local vhost refresher (02:30) and prunes backups older than 7 days, so new FastPanel sites get protected automatically
 - ✅ Provide next steps
 
-### Quick Test
-After installation, test your security:
+### Security Test
+
+> **Security Note on `curl | sudo bash`**
+>
+> Piping a script directly from the internet to `sudo` is a common practice for convenience, but it relies on trusting the source and your connection. For a more cautious approach, you can download the script first, inspect it, and then run it:
+> ```bash
+> wget https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/install-direct.sh
+> # You can now inspect install-direct.sh
+> sudo bash install-direct.sh
+> ```
+
+After installation, run the full security test:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/scripts/quick-test.sh | bash -s your-domain.com
+wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/scripts/test-security.sh | bash -s your-domain.com
 ```
 
 ---
@@ -324,22 +334,22 @@ sudo nginx -t && sudo systemctl reload nginx
 - `sed -i '/disable_symlinks .../a\ ...'` appends the include right after the disable_symlinks line within the server block, so security rules are read before `location ~ \.php$` handlers.
 - The `find` command works whether FastPanel stores vhosts directly in `/etc/nginx/fastpanel2-sites/` or in child directories. Update the base path if your panel uses a custom location.
 
-### 3 — Test the rules (quick checks + separate category scripts)
+### 3 — Test the rules (manual checks + script)
 
-**Quick single test (small)**
+**Manual single test (small)**
 
 ```bash
 curl -I https://your-domain.tld/wp-content/uploads/test-block.php
 # Expect: HTTP/1.1 403 Forbidden
 ```
 
-**Full combined test (one-liner)**
+**Manual combined test (one-liner)**
 
 This runs a few important checks and prints HTTP codes:
 
 ```bash
 bash -c 'echo "=== WordPress Security Test ===";
-for url in wp-config.php xmlrpc.php wp-admin/install.php wp-admin/upgrade.php wp-content/uploads/test.php readme.html license.txt; do
+for url in wp-config.php xmlrpc.php wp-admin/install.php wp-content/uploads/test.php readme.html license.txt; do
   code=$(curl -s -o /dev/null -w "%{http_code}" https://your-domain.com/$url);
   printf "%-40s %s\n" "$url:" "$code";
 done;
@@ -351,18 +361,10 @@ done; echo "=== Test Complete ==="'
 
 (Replace `your-domain.com` with your domain.)
 
-**Separate test files (recommended for repeated checks)**
-
-The repository includes test scripts:
+**Repository test script (recommended for repeated checks)**
 
 ```bash
-# Quick test
-./scripts/quick-test.sh your-domain.com
-
-# Comprehensive test
 ./scripts/test-security.sh your-domain.com
-
-# Verbose output
 ./scripts/test-security.sh your-domain.com --verbose
 ```
 
@@ -419,19 +421,12 @@ Nightly automation logs to `/var/log/wp-security-nightly.log`. Adjust the schedu
 ### Testing
 
 ```bash
-# Quick test (essential checks only)
-./scripts/quick-test.sh your-domain.com
-
-# Comprehensive test
 ./scripts/test-security.sh your-domain.com
 
-# With verbose output
 ./scripts/test-security.sh your-domain.com --verbose
 
-# Skip CDN bypass tests (stay behind Cloudflare or similar)
 ./scripts/test-security.sh your-domain.com --skip-cdn
 
-# Run without creating temporary fixtures
 ./scripts/test-security.sh your-domain.com --no-fixtures
 ```
 
@@ -653,8 +648,7 @@ WordPress-Security-with-Nginx-on-FastPanel/
     ├── install.sh                     # Automated installation script
     ├── update-vhosts-nightly.sh       # Nightly FastPanel vhost refresher
     ├── uninstall.sh                   # Automated uninstallation script
-    ├── test-security.sh               # Comprehensive security testing
-    └── quick-test.sh                  # Quick security checks
+    └── test-security.sh               # Comprehensive security testing
 ```
 
 ## 🔧 Repository Topics

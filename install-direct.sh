@@ -457,9 +457,8 @@ show_completion() {
     echo "  • Fake Googlebot detection via IP range verification"
     echo
     print_status "Next steps:"
-    echo "1. Test your security: curl -s $RAW_URL/scripts/quick-test.sh | bash -s your-domain.com"
+    echo "1. Test your security: curl -s $RAW_URL/scripts/test-security.sh | bash -s your-domain.com"
     echo "2. Monitor your Nginx logs for blocked attacks"
-    echo "3. For comprehensive testing: curl -s $RAW_URL/scripts/test-security.sh | bash -s your-domain.com"
     echo
     print_status "Backup location: $BACKUP_DIR"
     print_status "Repository: $REPO_URL"

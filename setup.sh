@@ -67,15 +67,15 @@ run_installation() {
     print_success "Installation completed!"
 }
 
-# Offer to run quick test
+# Offer to run full test
 offer_test() {
     echo
-    print_header "Quick Security Test"
-    print_status "Would you like to run a quick security test on your domains?"
-    print_status "This will test basic security protections."
+    print_header "Security Test"
+    print_status "Would you like to run the comprehensive security test on your domains?"
+    print_status "This verifies all protection rules (sensitive files, uploads, exploits, etc.)."
     echo
 
-    read -p "Run quick test? (y/N): " -n 1 -r
+    read -p "Run security test? (y/N): " -n 1 -r
     echo
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -85,12 +85,12 @@ offer_test() {
         if [[ -n "$domains" ]]; then
             for domain in $domains; do
                 print_status "Testing $domain..."
-                wget -qO- "$RAW_URL/scripts/quick-test.sh" | bash -s "$domain"
+                wget -qO- "$RAW_URL/scripts/test-security.sh" | bash -s "$domain"
                 echo
             done
         else
             print_warning "No domains provided. You can run tests later:"
-            print_status "wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/scripts/quick-test.sh | bash -s your-domain.com"
+            print_status "wget -qO- https://raw.githubusercontent.com/hienhoceo-dpsmedia/wordpress-security-with-nginx-on-fastpanel/master/scripts/test-security.sh | bash -s your-domain.com"
         fi
     fi
 }
@@ -111,9 +111,8 @@ show_completion() {
     echo "  • Known exploit pattern blocking"
     echo
     print_status "Next steps:"
-    echo "1. Test your security: curl -s https://raw.githubusercontent.com/hienhoceo-dpsmedia/WordPress-Security-with-Nginx-on-FastPanel/main/scripts/quick-test.sh | bash -s your-domain.com"
+    echo "1. Test your security: curl -s https://raw.githubusercontent.com/hienhoceo-dpsmedia/WordPress-Security-with-Nginx-on-FastPanel/main/scripts/test-security.sh | bash -s your-domain.com"
     echo "2. Monitor your Nginx logs for blocked attacks"
-    echo "3. For advanced testing: curl -s https://raw.githubusercontent.com/hienhoceo-dpsmedia/WordPress-Security-with-Nginx-on-FastPanel/main/scripts/test-security.sh | bash -s your-domain.com"
     echo
     print_status "Backup location: /root/backup-fastpanel2-sites-YYYY-MM-DD_HH:MM:SS"
     print_status "Repository: $REPO_URL"
