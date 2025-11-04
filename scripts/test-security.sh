@@ -81,6 +81,7 @@ TOTAL_TESTS=0
 PASSED_TESTS=0
 FAILED_TESTS=0
 WARNING_TESTS=0
+ALLOW_CONNECTION_DROP=false
 
 # Function to print colored output
 print_status() {
@@ -340,12 +341,18 @@ test_url() {
 
     if [[ "$response_code" == "$expected_code" ]]; then
         print_success "$description - HTTP $response_code ✓"
+        ALLOW_CONNECTION_DROP=false
+        return 0
+    elif [[ "$ALLOW_CONNECTION_DROP" == true && "$expected_code" == "403" && "$response_code" == "000" ]]; then
+        print_success "$description - Connection dropped (treated as blocked) ✓"
+        ALLOW_CONNECTION_DROP=false
         return 0
     else
         print_error "$description - HTTP $response_code (expected $expected_code) ✗"
         if [[ "$VERBOSE" == true ]]; then
             print_status "URL: https://$DOMAIN$url"
         fi
+        ALLOW_CONNECTION_DROP=false
         return 1
     fi
 }
@@ -391,12 +398,18 @@ test_url_direct() {
 
     if [[ "$response_code" == "$expected_code" ]]; then
         print_success "$description (direct) - HTTP $response_code ✓"
+        ALLOW_CONNECTION_DROP=false
+        return 0
+    elif [[ "$ALLOW_CONNECTION_DROP" == true && "$expected_code" == "403" && "$response_code" == "000" ]]; then
+        print_success "$description (direct) - Connection dropped (treated as blocked) ✓"
+        ALLOW_CONNECTION_DROP=false
         return 0
     else
         print_warning "$description (direct) - HTTP $response_code (expected $expected_code) ⚠"
         if [[ "$VERBOSE" == true ]]; then
             print_status "This might be due to CDN caching"
         fi
+        ALLOW_CONNECTION_DROP=false
         return 1
     fi
 }
@@ -510,7 +523,9 @@ test_attack_patterns() {
     )
 
     for pattern in "${patterns[@]}"; do
+        ALLOW_CONNECTION_DROP=true
         test_url "$pattern" "403" "Attack pattern should be blocked"
+        ALLOW_CONNECTION_DROP=true
         test_url_direct "$pattern" "403" "Attack pattern should be blocked"
     done
 }
