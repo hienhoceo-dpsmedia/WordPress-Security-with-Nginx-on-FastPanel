@@ -34,6 +34,9 @@ UPLOAD_PHP_FILES=(
     "/wp-content/uploads/test.php"
     "/wp-content/uploads/shell.php"
     "/wp-content/uploads/2023/12/malicious.php"
+)
+
+CACHE_PHP_FILES_ALLOWED=(
     "/wp-content/cache/test.php"
 )
 
@@ -239,6 +242,10 @@ setup_fixtures() {
     for path in "${EXPLOIT_FILES[@]}"; do
         create_fixture "$path"
     done
+
+    for path in "${CACHE_PHP_FILES_ALLOWED[@]}"; do
+        create_fixture "$path"
+    done
 }
 
 # Print usage information
@@ -408,6 +415,20 @@ test_upload_php() {
     done
 }
 
+# Test PHP execution allowed in cache directory
+test_cache_php_allowed() {
+    if [[ ${#CACHE_PHP_FILES_ALLOWED[@]} -eq 0 ]]; then
+        return
+    fi
+
+    print_header "Testing Allowed PHP Execution in Cache (Should Return 200)"
+
+    for file in "${CACHE_PHP_FILES_ALLOWED[@]}"; do
+        test_url "$file" "200" "PHP execution in $file should be accessible"
+        test_url_direct "$file" "200" "PHP execution in $file should be accessible"
+    done
+}
+
 # Test backup and development files
 test_backup_files() {
     print_header "Testing Backup and Development Files (Should Return 403)"
@@ -557,6 +578,7 @@ main() {
     check_security_config
     test_critical_files
     test_upload_php
+    test_cache_php_allowed
     test_backup_files
     test_dangerous_scripts
     test_exploit_files
