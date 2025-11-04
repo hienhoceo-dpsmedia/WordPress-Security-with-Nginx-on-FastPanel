@@ -82,6 +82,11 @@ PASSED_TESTS=0
 FAILED_TESTS=0
 WARNING_TESTS=0
 ALLOW_CONNECTION_DROP=false
+DEFAULT_USER_AGENT="WordPress-Security-Test/1.0"
+CURRENT_USER_AGENT=""
+EXTRA_CURL_ARGS=()
+EXTRA_CURL_HEADERS=()
+FAKE_GOOGLEBOT_UA="Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 
 # Function to print colored output
 print_status() {
@@ -346,9 +351,12 @@ test_url() {
         print_status "Testing: $url"
     fi
 
+    local user_agent="${CURRENT_USER_AGENT:-$DEFAULT_USER_AGENT}"
     local response_code
     response_code=$(curl -sS -o /dev/null -w "%{http_code}" \
-        -A "WordPress-Security-Test/1.0" \
+        -A "$user_agent" \
+        "${EXTRA_CURL_ARGS[@]}" \
+        "${EXTRA_CURL_HEADERS[@]}" \
         "https://$DOMAIN$url" 2>/dev/null || true)
     response_code=${response_code//$'\r'/}
     response_code=${response_code//$'\n'/}
@@ -423,11 +431,14 @@ test_url_direct() {
         resolve_addr="[$server_ip]"
     fi
 
+    local user_agent="${CURRENT_USER_AGENT:-$DEFAULT_USER_AGENT}"
     local response_code
     response_code=$(curl -sS -o /dev/null -w "%{http_code}" \
-        -A "WordPress-Security-Test/1.0" \
+        -A "$user_agent" \
         --resolve "$DOMAIN:443:$resolve_addr" \
         -H "Host: $DOMAIN" \
+        "${EXTRA_CURL_ARGS[@]}" \
+        "${EXTRA_CURL_HEADERS[@]}" \
         "https://$DOMAIN$url" 2>/dev/null || true)
     response_code=${response_code//$'\r'/}
     response_code=${response_code//$'\n'/}
@@ -574,6 +585,30 @@ test_attack_patterns() {
     done
 }
 
+test_fake_googlebot() {
+    print_header "Testing Fake Googlebot Protection (Should Return 403)"
+
+    local prev_user_agent="$CURRENT_USER_AGENT"
+    local -a prev_args=("${EXTRA_CURL_ARGS[@]}")
+    local -a prev_headers=("${EXTRA_CURL_HEADERS[@]}")
+
+    CURRENT_USER_AGENT="$FAKE_GOOGLEBOT_UA"
+    EXTRA_CURL_ARGS=()
+    EXTRA_CURL_HEADERS=(-H "X-Forwarded-For: 203.0.113.10")
+
+    ALLOW_CONNECTION_DROP=true
+    test_url "/" "403" "Spoofed Googlebot should be blocked"
+
+    if [[ "$SKIP_CDN" != true ]]; then
+        ALLOW_CONNECTION_DROP=true
+        test_url_direct "/" "403" "Spoofed Googlebot should be blocked"
+    fi
+
+    CURRENT_USER_AGENT="$prev_user_agent"
+    EXTRA_CURL_ARGS=("${prev_args[@]}")
+    EXTRA_CURL_HEADERS=("${prev_headers[@]}")
+}
+
 # Check if security configuration is loaded
 check_security_config() {
     print_header "Checking Security Configuration"
@@ -663,6 +698,7 @@ main() {
     test_dangerous_scripts
     test_exploit_files
     test_attack_patterns
+    test_fake_googlebot
     test_normal_functionality
 
     # Print summary
