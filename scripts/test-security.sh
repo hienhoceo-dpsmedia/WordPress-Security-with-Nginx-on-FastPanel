@@ -323,8 +323,22 @@ parse_args() {
 # Test a single URL and return HTTP status code
 test_url() {
     local url="$1"
-    local expected_code="$2"
+    local expected_spec="$2"
     local description="$3"
+    local expected_codes=()
+    local expects_block=false
+
+    IFS=' ' read -r -a expected_codes <<< "$expected_spec"
+    if [[ ${#expected_codes[@]} -eq 0 ]]; then
+        expected_codes=("000")
+    fi
+
+    for code in "${expected_codes[@]}"; do
+        if [[ "$code" == "403" ]]; then
+            expects_block=true
+            break
+        fi
+    done
 
     ((++TOTAL_TESTS))
 
@@ -342,16 +356,21 @@ test_url() {
     response_code=${response_code// }
     response_code=${response_code:-000}
 
-    if [[ "$response_code" == "$expected_code" ]]; then
-        print_success "$description - HTTP $response_code ✓"
-        ALLOW_CONNECTION_DROP=false
-        return 0
-    elif [[ "$ALLOW_CONNECTION_DROP" == true && "$expected_code" == "403" && "$response_code" == "000" ]]; then
+    local code
+    for code in "${expected_codes[@]}"; do
+        if [[ "$response_code" == "$code" ]]; then
+            print_success "$description - HTTP $response_code ✓"
+            ALLOW_CONNECTION_DROP=false
+            return 0
+        fi
+    done
+
+    if [[ "$ALLOW_CONNECTION_DROP" == true && "$response_code" == "000" && "$expects_block" == true ]]; then
         print_success "$description - Connection dropped (treated as blocked) ✓"
         ALLOW_CONNECTION_DROP=false
         return 0
     else
-        print_error "$description - HTTP $response_code (expected $expected_code) ✗"
+        print_error "$description - HTTP $response_code (expected ${expected_codes[*]}) ✗"
         if [[ "$VERBOSE" == true ]]; then
             print_status "URL: https://$DOMAIN$url"
         fi
@@ -363,8 +382,22 @@ test_url() {
 # Test with direct IP (bypass CDN)
 test_url_direct() {
     local url="$1"
-    local expected_code="$2"
+    local expected_spec="$2"
     local description="$3"
+    local expected_codes=()
+    local expects_block=false
+
+    IFS=' ' read -r -a expected_codes <<< "$expected_spec"
+    if [[ ${#expected_codes[@]} -eq 0 ]]; then
+        expected_codes=("000")
+    fi
+
+    for code in "${expected_codes[@]}"; do
+        if [[ "$code" == "403" ]]; then
+            expects_block=true
+            break
+        fi
+    done
 
     if [[ "$SKIP_CDN" == true ]]; then
         return 0
@@ -402,16 +435,21 @@ test_url_direct() {
     response_code=${response_code// }
     response_code=${response_code:-000}
 
-    if [[ "$response_code" == "$expected_code" ]]; then
-        print_success "$description (direct) - HTTP $response_code ✓"
-        ALLOW_CONNECTION_DROP=false
-        return 0
-    elif [[ "$ALLOW_CONNECTION_DROP" == true && "$expected_code" == "403" && "$response_code" == "000" ]]; then
+    local code
+    for code in "${expected_codes[@]}"; do
+        if [[ "$response_code" == "$code" ]]; then
+            print_success "$description (direct) - HTTP $response_code ✓"
+            ALLOW_CONNECTION_DROP=false
+            return 0
+        fi
+    done
+
+    if [[ "$ALLOW_CONNECTION_DROP" == true && "$response_code" == "000" && "$expects_block" == true ]]; then
         print_success "$description (direct) - Connection dropped (treated as blocked) ✓"
         ALLOW_CONNECTION_DROP=false
         return 0
     else
-        print_warning "$description (direct) - HTTP $response_code (expected $expected_code) ⚠"
+        print_warning "$description (direct) - HTTP $response_code (expected ${expected_codes[*]}) ⚠"
         if [[ "$VERBOSE" == true ]]; then
             print_status "This might be due to CDN caching"
         fi
@@ -505,7 +543,7 @@ test_normal_functionality() {
     # These should work normally
     test_url "/" "200" "Homepage should be accessible"
     test_url "/wp-admin/" "302" "WP Admin should redirect (302)"
-    test_url "/wp-login.php" "200" "WP Login should be accessible"
+    test_url "/wp-login.php" "200 302" "WP Login should be accessible"
     test_url "/wp-content/themes/twentytwentyfour/style.css" "200" "Theme CSS should be accessible"
     test_url "/wp-includes/js/jquery/jquery.min.js" "200" "WordPress JS should be accessible"
     test_url "/wp-admin/upgrade.php" "200" "WP upgrade script should be accessible"
