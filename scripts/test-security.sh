@@ -46,7 +46,6 @@ BACKUP_FILES=(
     "/wp-config.php.old"
     "/wp-config.php~"
     "/database.sql"
-    "/backup.zip"
     "/site.tar.gz"
     "/wp-content/uploads/backup.sql"
     "/.env"
