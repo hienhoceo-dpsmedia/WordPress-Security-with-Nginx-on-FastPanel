@@ -337,6 +337,9 @@ test_url() {
         -A "WordPress-Security-Test/1.0" \
         "https://$DOMAIN$url" 2>/dev/null || true)
     response_code=${response_code//$'\r'/}
+    response_code=${response_code//$'\n'/}
+    response_code=${response_code//$'\t'/}
+    response_code=${response_code// }
     response_code=${response_code:-000}
 
     if [[ "$response_code" == "$expected_code" ]]; then
@@ -394,6 +397,9 @@ test_url_direct() {
         -H "Host: $DOMAIN" \
         "https://$DOMAIN$url" 2>/dev/null || true)
     response_code=${response_code//$'\r'/}
+    response_code=${response_code//$'\n'/}
+    response_code=${response_code//$'\t'/}
+    response_code=${response_code// }
     response_code=${response_code:-000}
 
     if [[ "$response_code" == "$expected_code" ]]; then
