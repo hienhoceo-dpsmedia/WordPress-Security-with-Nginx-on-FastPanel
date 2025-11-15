@@ -19,6 +19,7 @@ GOOGLE_MAP_PATH="/etc/nginx/fastpanel2-includes/googlebot-verified.map"
 GOOGLE_HTTP_INCLUDE="/etc/nginx/fastpanel2-includes/googlebot-verify-http.mapinc"
 SECURITY_HTTP_MAP="/etc/nginx/fastpanel2-includes/wordpress-security-http.mapinc"
 GOOGLE_HTTP_BRIDGE="/etc/nginx/conf.d/wp-googlebot-verify.conf"
+FASTPANEL_VHOST_DIR="${FASTPANEL_VHOST_DIR:-/etc/nginx/fastpanel2-sites}"
 
 # Function to print colored output
 print_status() {
@@ -57,9 +58,9 @@ check_root() {
 
 # Check if FastPanel is installed
 check_fastpanel() {
-    if [[ ! -d "/etc/nginx/fastpanel2-sites" ]]; then
-        print_error "FastPanel directory not found at /etc/nginx/fastpanel2-sites"
-        print_error "Please ensure FastPanel is installed"
+    if [[ ! -d "$FASTPANEL_VHOST_DIR" ]]; then
+        print_error "FastPanel directory not found at $FASTPANEL_VHOST_DIR"
+        print_error "Please ensure FastPanel is installed or set FASTPANEL_VHOST_DIR"
         exit 1
     fi
 }
@@ -98,6 +99,14 @@ fetch_file() {
     else
         wget -qO "$output" "$url"
     fi
+}
+
+gather_vhost_configs() {
+    if [[ ! -d "$FASTPANEL_VHOST_DIR" ]]; then
+        return 1
+    fi
+
+    find -L "$FASTPANEL_VHOST_DIR" -type f -name '*.conf' -print0 2>/dev/null || true
 }
 
 # Configure nightly automation
@@ -244,7 +253,7 @@ backup_vhosts() {
     print_header "Creating Backup of Existing Configurations"
 
     BACKUP_DIR="/root/backup-fastpanel2-sites-$(date +%F_%T)"
-    if cp -a /etc/nginx/fastpanel2-sites "$BACKUP_DIR"; then
+    if cp -a "$FASTPANEL_VHOST_DIR" "$BACKUP_DIR"; then
         print_success "Backup created at: $BACKUP_DIR"
     else
         print_error "Failed to create backup"
@@ -261,15 +270,13 @@ update_vhosts() {
     local failed=0
     local vhost_array=()
 
-    while IFS= read -r -d '' vhost; do
-        vhost_array+=("$vhost")
-    done < <(find /etc/nginx/fastpanel2-sites -type f -name '*.conf' -print0 2>/dev/null || true)
+    mapfile -d '' -t vhost_array < <(gather_vhost_configs) || true
 
     total=${#vhost_array[@]}
 
     if [[ $total -eq 0 ]]; then
-        print_warning "No vhost configuration files found in /etc/nginx/fastpanel2-sites/"
-        print_status "If your FastPanel stores configs elsewhere, update the script path accordingly."
+        print_warning "No vhost configuration files found in $FASTPANEL_VHOST_DIR/"
+        print_status "If your FastPanel stores configs elsewhere, set FASTPANEL_VHOST_DIR before running."
         return 0
     fi
 
@@ -412,9 +419,7 @@ verify_installation() {
     local missing_sites=()
     local vhost_array=()
 
-    while IFS= read -r -d '' vhost; do
-        vhost_array+=("$vhost")
-    done < <(find /etc/nginx/fastpanel2-sites -type f -name '*.conf' -print0 2>/dev/null || true)
+    mapfile -d '' -t vhost_array < <(gather_vhost_configs) || true
 
     total_vhosts=${#vhost_array[@]}
 
@@ -438,7 +443,7 @@ verify_installation() {
             done
             print_status ""
             print_status "To fix remaining sites manually, run:"
-            print_status "find /etc/nginx/fastpanel2-sites -type f -name '*.conf' -print0 | \\"
+            print_status "find $FASTPANEL_VHOST_DIR -type f -name '*.conf' -print0 | \\"
             print_status "while IFS= read -r -d '' conf_file; do"
             print_status "  if [[ -f \"\$conf_file\" ]] && ! grep -q \"fastpanel2-includes\" \"\$conf_file\"; then"
             print_status "    sed -i '/include \\/etc\\/nginx\\/fastpanel2-includes\\/\\*\\.conf;/d' \"\$conf_file\""
